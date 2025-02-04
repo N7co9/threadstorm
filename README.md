@@ -1,4 +1,3 @@
-```markdown
 # Threadstorm 🌩️  
 **Eine moderne CLI zur Interaktion mit der Threads API und automatisierten AI-generierten Posts.**
 

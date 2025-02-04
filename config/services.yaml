@@ -4,6 +4,9 @@
 # Put parameters here that don't need to change on each machine where the app is deployed
 # https://symfony.com/doc/current/best_practices.html#use-parameters-for-application-configuration
 parameters:
+    THREADS_ACCESS_TOKEN: '%env(THREADS_ACCESS_TOKEN)%'
+    THREADS_USER_ID: '%env(THREADS_USER_ID)%'
+    ANTHROPIC_API_KEY: '%env(ANTHROPIC_API_KEY)%'
 
 services:
     # default configuration for services in *this* file

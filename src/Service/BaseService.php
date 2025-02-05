@@ -6,7 +6,7 @@ namespace App\Service;
 use Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface;
 use Symfony\Component\HttpClient\HttpClient;
 
-class ThreadsApiService
+class BaseService
 {
     private $client;
     private string $accessToken;
@@ -52,20 +52,37 @@ class ThreadsApiService
      * @return string The ID of the created thread.
      * @throws \RuntimeException if the API call fails.
      */
-    public function postThread(string $message): string
+    public function postThread(string $message, ?string $mediaUrl = null): string
     {
         $createUrl = "{$this->apiBaseUrl}/{$this->threadsUserId}/threads";
-        try {
-            $response = $this->client->request('POST', $createUrl, [
-                'query' => [
-                    'media_type' => 'text',
-                    'text' => $message,
-                    'access_token' => $this->accessToken,
-                ],
-            ]);
-            $data = $response->toArray();
-        } catch (\Throwable $e) {
-            throw new \RuntimeException("❌  Failed to create thread (creation phase): " . $e->getMessage(), 0, $e);
+
+        if (isset($mediaUrl)) {
+            try {
+                $response = $this->client->request('POST', $createUrl, [
+                    'query' => [
+                        'media_type' => 'IMAGE',
+                        'image_url' => $mediaUrl,
+                        'text' => $message,
+                        'access_token' => $this->accessToken,
+                    ],
+                ]);
+                $data = $response->toArray();
+            } catch (\Throwable $e) {
+                throw new \RuntimeException("❌  Failed to create thread (creation phase): " . $e->getMessage(), 0, $e);
+            }
+        } else {
+            try {
+                $response = $this->client->request('POST', $createUrl, [
+                    'query' => [
+                        'media_type' => 'text',
+                        'text' => $message,
+                        'access_token' => $this->accessToken,
+                    ],
+                ]);
+                $data = $response->toArray();
+            } catch (\Throwable $e) {
+                throw new \RuntimeException("❌  Failed to create thread (creation phase): " . $e->getMessage(), 0, $e);
+            }
         }
 
         if (empty($data['id'])) {

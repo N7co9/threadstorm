@@ -3,8 +3,9 @@ declare(strict_types=1);
 
 namespace App\Command;
 
-use App\Service\AiAutoPostService;
-use App\Service\ThreadsApiService;
+use App\Service\BaseService;
+use App\Service\Extension\AutoPost\AutoPostService;
+use App\Service\Extension\AutoPost\ConfigurationService;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
@@ -12,24 +13,31 @@ use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 
 #[AsCommand(name: 'app:threads', description: 'Interacts with the Threads API via Threadstorm CLI')]
-class ThreadsCommand extends Command
+class EntrypointCommand extends Command
 {
-    private ThreadsApiService $threadsService;
-    private AiAutoPostService $aiAutoPostService;
+    private BaseService $threadsService;
+    private AutoPostService $autoPostService;
+    private ConfigurationService $configurationService;
 
-    public function __construct(ThreadsApiService $threadsService, AiAutoPostService $aiAutoPostService)
+    public function __construct(
+        BaseService          $threadsService,
+        AutoPostService      $autoPostService,
+        ConfigurationService $configurationService
+    )
     {
         parent::__construct();
         $this->threadsService = $threadsService;
-        $this->aiAutoPostService = $aiAutoPostService;
+        $this->autoPostService = $autoPostService;
+        $this->configurationService = $configurationService;
     }
 
     protected function configure(): void
     {
         $this
-            ->addArgument('action', InputArgument::REQUIRED, 'Action to perform: list, post, status, get, delete, auto-post, help')
-            ->addArgument('value', InputArgument::OPTIONAL, 'Message for "post", thread ID for "get"/"delete", or range for "auto-post" (e.g. "1-3", "3-5", or "5-10")')
-            ->addArgument('context', InputArgument::OPTIONAL, 'Optional context for AI-generated content (only used with auto-post)')
+            ->addArgument('action', InputArgument::REQUIRED, 'Action to perform: list, post, status, get, delete, auto-post, config, audit, help')
+            ->addArgument('value', InputArgument::OPTIONAL, 'For "config": the configuration parameter name (e.g. subreddits, moods); for other actions, see documentation.')
+            ->addArgument('context', InputArgument::OPTIONAL, 'For "config": the operation to perform (get, add, remove); for other actions, optional context.')
+            ->addArgument('extra', InputArgument::OPTIONAL, 'For "config": the value to add or remove.')
             ->setHelp($this->getDetailedHelpText());
     }
 
@@ -38,6 +46,7 @@ class ThreadsCommand extends Command
         $action = $input->getArgument('action');
         $value = $input->getArgument('value');
         $context = $input->getArgument('context');
+        $extra = $input->getArgument('extra');
 
         try {
             switch ($action) {
@@ -71,8 +80,15 @@ class ThreadsCommand extends Command
                         return Command::FAILURE;
                     }
                     $output->writeln('<info>🚀  Starting auto-post process via Threadstorm. Press Ctrl+C to terminate.</info>');
-                    $this->aiAutoPostService->autoPost($value, $context);
+                    $this->autoPostService->autoPost($value, $context);
                     return Command::SUCCESS;
+                case 'audit':
+                    $mode = $value ? strtolower($value) : 'text';
+                    $result = $this->autoPostService->auditGenerate($mode, $context);
+                    $output->writeln($result);
+                    return Command::SUCCESS;
+                case 'config':
+                    return $this->handleConfigAction($value, $context, $extra, $output);
                 default:
                     $output->writeln('<error>❌  Unknown action. Use "help" to see available commands.</error>');
                     return Command::FAILURE;
@@ -82,6 +98,101 @@ class ThreadsCommand extends Command
             $output->writeln("<error>Stack trace: " . $e->getTraceAsString() . "</error>");
             return Command::FAILURE;
         }
+    }
+
+    /**
+     * Handles configuration related actions.
+     *
+     * Command syntax:
+     * - `app:threads config` -> Lists available configuration parameters.
+     * - `app:threads config <parameter>` -> Shows the current value of that parameter.
+     * - `app:threads config <parameter> get` -> Same as above.
+     * - `app:threads config <parameter> add <value>` -> Adds a value.
+     * - `app:threads config <parameter> remove <value>` -> Removes a value.
+     */
+    private function handleConfigAction(?string $parameter, ?string $operation, ?string $extra, OutputInterface $output): int
+    {
+        // If no parameter is selected, list all available configuration parameters.
+        if (empty($parameter)) {
+            $configOptions = $this->configurationService->getConfigurationOptions();
+            $output->writeln('<info>Available Configuration Parameters:</info>');
+            $i = 1;
+            foreach ($configOptions as $key => $option) {
+                $output->writeln("{$i}. {$option['label']} (key: {$key}) - {$option['description']}");
+                $i++;
+            }
+            return Command::SUCCESS;
+        }
+
+        // Normalize operation to lower-case, defaulting to "get" if not provided.
+        $operation = $operation ? strtolower($operation) : 'get';
+
+        // Handle operations based on the selected parameter.
+        switch ($parameter) {
+            case 'subreddits':
+                if ($operation === 'get') {
+                    $subs = $this->configurationService->getConfiguration()['subreddits'];
+                    $output->writeln('<info>Current Subreddits:</info>');
+                    $output->writeln(print_r($subs, true));
+                    return Command::SUCCESS;
+                }
+                if ($operation === 'add') {
+                    if (empty($extra)) {
+                        $output->writeln('<error>❌  A subreddit name is required to add.</error>');
+                        return Command::FAILURE;
+                    }
+                    $this->configurationService->addSubreddit($extra);
+                    $output->writeln("<info>Subreddit '{$extra}' added successfully.</info>");
+                    return Command::SUCCESS;
+                }
+                if ($operation === 'remove') {
+                    if (empty($extra)) {
+                        $output->writeln('<error>❌  A subreddit name is required to remove.</error>');
+                        return Command::FAILURE;
+                    }
+                    $this->configurationService->removeSubreddit($extra);
+                    $output->writeln("<info>Subreddit '{$extra}' removed successfully.</info>");
+                    return Command::SUCCESS;
+                }
+                break;
+            case 'moods':
+                if ($operation === 'get') {
+                    $moods = $this->configurationService->getConfiguration()['moods'];
+                    $output->writeln('<info>Current Mood Configurations:</info>');
+                    $output->writeln(print_r($moods, true));
+                    return Command::SUCCESS;
+                }
+                if ($operation === 'add') {
+                    if (empty($extra)) {
+                        $output->writeln('<error>❌  A mood key is required to add.</error>');
+                        return Command::FAILURE;
+                    }
+                    // For demonstration, add with a default configuration.
+                    $defaultConfig = [
+                        'modifier' => 'Default mood modifier.',
+                        'temperature' => 0.5,
+                    ];
+                    $this->configurationService->addMood($extra, $defaultConfig);
+                    $output->writeln("<info>Mood '{$extra}' added successfully with default configuration.</info>");
+                    return Command::SUCCESS;
+                }
+                if ($operation === 'remove') {
+                    if (empty($extra)) {
+                        $output->writeln('<error>❌  A mood key is required to remove.</error>');
+                        return Command::FAILURE;
+                    }
+                    $this->configurationService->removeMood($extra);
+                    $output->writeln("<info>Mood '{$extra}' removed successfully.</info>");
+                    return Command::SUCCESS;
+                }
+                break;
+            default:
+                $output->writeln('<error>❌  Unknown configuration parameter. Allowed parameters: subreddits, moods.</error>');
+                return Command::FAILURE;
+        }
+
+        $output->writeln('<error>❌  Unknown operation. Allowed operations: get, add, remove.</error>');
+        return Command::FAILURE;
     }
 
     private function getDetailedHelpText(): string
@@ -102,14 +213,30 @@ class ThreadsCommand extends Command
             
             Available Commands:
             ────────────────────────────
-            📜 list         - List all existing threads along with meta-data (ID, Caption, Timestamp, Permalink).
-            ✍️  post         - Create a new thread. Example: `app:threads post "Your message here"`
+            📜 list         - List all existing threads along with meta-data.
+            📡 post         - Create a new thread. Example: `app:threads post "Your message here"`
             🔌 status       - Check API connection status and profile details.
-            🔍 get          - Retrieve details of a specific thread. Example: `app:threads get THREAD_ID`
-            ❌ delete       - Delete a specific thread. Example: `app:threads delete THREAD_ID`
-            🤖 auto-post    - Start the AI-driven auto-post process (24h quota). Example: `app:threads auto-post [range] [optional context]`
-                               * Allowed ranges: 1-3, 3-5, 5-10 posts per 24 hours.
-            ❓ help         - Show this help message.
+            🔎 get          - Retrieve details of a specific thread. Example: `app:threads get THREAD_ID`
+            🛑 delete       - Delete a specific thread. Example: `app:threads delete THREAD_ID`
+            🤖 auto-post    - Start the AI-driven auto-post process. Example: `app:threads auto-post [range] [optional context]`
+            ⚙️ config       - Configure auto-post parameters.
+                              Examples:
+                                • `app:threads config` 
+                                    - Lists available configuration parameters.
+                                • `app:threads config subreddits get`
+                                    - Displays current subreddits.
+                                • `app:threads config subreddits add redditName`
+                                    - Adds a subreddit.
+                                • `app:threads config subreddits remove redditName`
+                                    - Removes a subreddit.
+                                • `app:threads config moods get`
+                                    - Displays current mood configurations.
+                                • `app:threads config moods add moodKey`
+                                    - Adds a mood with a default configuration.
+                                • `app:threads config moods remove moodKey`
+                                    - Removes a mood.
+            ✍️ audit       - Audit AI generation capabilities.
+            🤔 help         - Show this help message.
             
             ────────────────────────────
             Threadstorm - Powered by Threads API
@@ -117,7 +244,6 @@ class ThreadsCommand extends Command
             HELP;
         return $helpText;
     }
-
 
     private function showHelp(OutputInterface $output): int
     {

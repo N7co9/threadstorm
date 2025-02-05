@@ -11,11 +11,12 @@ use Symfony\Contracts\HttpClient\Exception\ClientExceptionInterface;
 use Symfony\Contracts\HttpClient\Exception\RedirectionExceptionInterface;
 use Symfony\Contracts\HttpClient\Exception\ServerExceptionInterface;
 use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
+use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 class AutoPostService extends BaseService
 {
     private string $anthropicApiKey;
-    private $clientAnthropic;
+    private HttpClientInterface $clientAnthropic;
     private string $timelineMemoryFile;
     private int $maxRegenerationAttempts = 3;
     private ?string $previousMood = null;
@@ -112,7 +113,7 @@ class AutoPostService extends BaseService
                     echo "Error posting regular post: " . $e->getMessage() . PHP_EOL;
                 }
 
-                if (random_int(1, 100) <= 30) {
+                if (random_int(1, 100) <= 5) {
                     echo "Triggered follow-up post." . PHP_EOL;
                     $attemptFollow = 0;
                     do {

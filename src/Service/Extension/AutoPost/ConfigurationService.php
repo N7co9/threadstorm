@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace App\Service\Extension\AutoPost;
 
+use App\Common\DTO\MoodConfiguration;
+
 class ConfigurationService
 {
     private MediaService $mediaService;
@@ -31,7 +33,6 @@ class ConfigurationService
      * Updates the configuration for the auto-post feature.
      *
      * @param array $config An associative array of configuration parameters.
-     *                      Example: ['subreddits' => [...], 'moods' => [...]]
      */
     public function updateConfiguration(array $config): void
     {
@@ -50,10 +51,10 @@ class ConfigurationService
      */
     public function addSubreddit(string $subreddit): void
     {
-        $subreddits = $this->mediaService->getSubreddits();
-        if (!in_array($subreddit, $subreddits, true)) {
-            $subreddits[] = $subreddit;
-            $this->mediaService->setSubreddits($subreddits);
+        $subs = $this->mediaService->getSubreddits();
+        if (!in_array($subreddit, $subs, true)) {
+            $subs[] = $subreddit;
+            $this->mediaService->setSubreddits($subs);
         }
     }
 
@@ -64,33 +65,32 @@ class ConfigurationService
      */
     public function removeSubreddit(string $subreddit): void
     {
-        $subreddits = $this->mediaService->getSubreddits();
-        $key = array_search($subreddit, $subreddits, true);
+        $subs = $this->mediaService->getSubreddits();
+        $key = array_search($subreddit, $subs, true);
         if ($key !== false) {
-            unset($subreddits[$key]);
-            $this->mediaService->setSubreddits(array_values($subreddits));
+            unset($subs[$key]);
+            $this->mediaService->setSubreddits(array_values($subs));
         }
     }
 
     /**
      * Adds a mood configuration.
      *
-     * @param string $mood The mood key to add.
-     * @param array{modifier: string, temperature: float} $configuration The configuration for the mood.
+     * @param MoodConfiguration $moodConfiguration The new mood configuration.
      */
-    public function addMood(string $mood, array $configuration): void
+    public function addMood(MoodConfiguration $moodConfiguration): void
     {
-        $this->moodService->addMood($mood, $configuration);
+        $this->moodService->addMood($moodConfiguration);
     }
 
     /**
      * Removes a mood configuration.
      *
-     * @param string $mood The mood key to remove.
+     * @param string $moodName The name of the mood to remove.
      */
-    public function removeMood(string $mood): void
+    public function removeMood(string $moodName): void
     {
-        $this->moodService->removeMood($mood);
+        $this->moodService->removeMood($moodName);
     }
 
     /**

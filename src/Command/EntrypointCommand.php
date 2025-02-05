@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Command;
 
+use App\Common\DTO\MoodConfiguration;
 use App\Service\BaseService;
 use App\Service\Extension\AutoPost\AutoPostService;
 use App\Service\Extension\AutoPost\ConfigurationService;
@@ -11,6 +12,7 @@ use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
+use Symfony\Component\Console\Question\Question;
 
 #[AsCommand(name: 'app:threads', description: 'Interacts with the Threads API via Threadstorm CLI')]
 class EntrypointCommand extends Command
@@ -88,7 +90,7 @@ class EntrypointCommand extends Command
                     $output->writeln($result);
                     return Command::SUCCESS;
                 case 'config':
-                    return $this->handleConfigAction($value, $context, $extra, $output);
+                    return $this->handleConfigAction($input, $output);
                 default:
                     $output->writeln('<error>❌  Unknown action. Use "help" to see available commands.</error>');
                     return Command::FAILURE;
@@ -107,12 +109,16 @@ class EntrypointCommand extends Command
      * - `app:threads config` -> Lists available configuration parameters.
      * - `app:threads config <parameter>` -> Shows the current value of that parameter.
      * - `app:threads config <parameter> get` -> Same as above.
-     * - `app:threads config <parameter> add <value>` -> Adds a value.
+     * - `app:threads config <parameter> add <value>` -> Adds a value (or, for moods, initiates interactive mode if <value> is omitted).
      * - `app:threads config <parameter> remove <value>` -> Removes a value.
      */
-    private function handleConfigAction(?string $parameter, ?string $operation, ?string $extra, OutputInterface $output): int
+    private function handleConfigAction(InputInterface $input, OutputInterface $output): int
     {
-        // If no parameter is selected, list all available configuration parameters.
+        $parameter = $input->getArgument('value');
+        $operation = $input->getArgument('context') ? strtolower($input->getArgument('context')) : 'get';
+        $extra = $input->getArgument('extra');
+
+        // If no parameter is selected, list available configuration options.
         if (empty($parameter)) {
             $configOptions = $this->configurationService->getConfigurationOptions();
             $output->writeln('<info>Available Configuration Parameters:</info>');
@@ -124,10 +130,7 @@ class EntrypointCommand extends Command
             return Command::SUCCESS;
         }
 
-        // Normalize operation to lower-case, defaulting to "get" if not provided.
-        $operation = $operation ? strtolower($operation) : 'get';
-
-        // Handle operations based on the selected parameter.
+        // Handle operations for each parameter.
         switch ($parameter) {
             case 'subreddits':
                 if ($operation === 'get') {
@@ -155,30 +158,73 @@ class EntrypointCommand extends Command
                     return Command::SUCCESS;
                 }
                 break;
+
             case 'moods':
                 if ($operation === 'get') {
                     $moods = $this->configurationService->getConfiguration()['moods'];
                     $output->writeln('<info>Current Mood Configurations:</info>');
-                    $output->writeln(print_r($moods, true));
+                    foreach ($moods as $mood) {
+                        $output->writeln("Name: {$mood->getName()}");
+                        $output->writeln("Modifier: {$mood->getModifier()}");
+                        $output->writeln("Temperature: {$mood->getTemperature()}");
+                        $output->writeln("Chance: {$mood->getChance()}%");
+                        $output->writeln('----------------------');
+                    }
                     return Command::SUCCESS;
                 }
                 if ($operation === 'add') {
-                    if (empty($extra)) {
-                        $output->writeln('<error>❌  A mood key is required to add.</error>');
+                    if (!empty($extra)) {
+                        $defaultConfig = new MoodConfiguration(
+                            $extra,
+                            'Default mood modifier.',
+                            0.5,
+                            10
+                        );
+                        $this->configurationService->addMood($defaultConfig);
+                        $output->writeln("<info>Mood '{$extra}' added with default configuration.</info>");
+                        return Command::SUCCESS;
+                    }
+                    // Otherwise, perform interactive mood addition.
+                    $helper = $this->getHelper('question');
+
+                    $questionName = new Question('Enter the name for the new mood: ');
+                    $name = $helper->ask($input, $output, $questionName);
+                    if (!$name) {
+                        $output->writeln('<error>Mood name cannot be empty.</error>');
                         return Command::FAILURE;
                     }
-                    // For demonstration, add with a default configuration.
-                    $defaultConfig = [
-                        'modifier' => 'Default mood modifier.',
-                        'temperature' => 0.5,
-                    ];
-                    $this->configurationService->addMood($extra, $defaultConfig);
-                    $output->writeln("<info>Mood '{$extra}' added successfully with default configuration.</info>");
+
+                    $questionTemp = new Question('Enter the temperature for this mood (float): ');
+                    $temperatureInput = $helper->ask($input, $output, $questionTemp);
+                    if (!is_numeric($temperatureInput)) {
+                        $output->writeln('<error>Invalid temperature value.</error>');
+                        return Command::FAILURE;
+                    }
+                    $temperature = (float)$temperatureInput;
+
+                    $questionModifier = new Question('Enter the modifier text for this mood: ');
+                    $modifier = $helper->ask($input, $output, $questionModifier);
+                    if (!$modifier) {
+                        $output->writeln('<error>Modifier cannot be empty.</error>');
+                        return Command::FAILURE;
+                    }
+
+                    $questionChance = new Question('Enter the chance of occurrence for this mood (integer percentage): ');
+                    $chanceInput = $helper->ask($input, $output, $questionChance);
+                    if (!is_numeric($chanceInput)) {
+                        $output->writeln('<error>Invalid chance value.</error>');
+                        return Command::FAILURE;
+                    }
+                    $chance = (int)$chanceInput;
+
+                    $moodConfig = new MoodConfiguration($name, $modifier, $temperature, $chance);
+                    $this->configurationService->addMood($moodConfig);
+                    $output->writeln("<info>Mood '{$name}' added successfully.</info>");
                     return Command::SUCCESS;
                 }
                 if ($operation === 'remove') {
                     if (empty($extra)) {
-                        $output->writeln('<error>❌  A mood key is required to remove.</error>');
+                        $output->writeln('<error>❌  A mood name is required to remove.</error>');
                         return Command::FAILURE;
                     }
                     $this->configurationService->removeMood($extra);
@@ -186,11 +232,11 @@ class EntrypointCommand extends Command
                     return Command::SUCCESS;
                 }
                 break;
+
             default:
                 $output->writeln('<error>❌  Unknown configuration parameter. Allowed parameters: subreddits, moods.</error>');
                 return Command::FAILURE;
         }
-
         $output->writeln('<error>❌  Unknown operation. Allowed operations: get, add, remove.</error>');
         return Command::FAILURE;
     }
@@ -213,30 +259,32 @@ class EntrypointCommand extends Command
             
             Available Commands:
             ────────────────────────────
-            📜 list         - List all existing threads along with meta-data.
+            📜 list         - List all existing threads.
             📡 post         - Create a new thread. Example: `app:threads post "Your message here"`
-            🔌 status       - Check API connection status and profile details.
-            🔎 get          - Retrieve details of a specific thread. Example: `app:threads get THREAD_ID`
-            🛑 delete       - Delete a specific thread. Example: `app:threads delete THREAD_ID`
-            🤖 auto-post    - Start the AI-driven auto-post process. Example: `app:threads auto-post [range] [optional context]`
+            🔌 status       - Check API connection status.
+            🔎 get          - Retrieve details of a thread.
+            🛑 delete       - Delete a thread.
+            🤖 auto-post    - Start the auto-post process.
             ⚙️ config       - Configure auto-post parameters.
                               Examples:
                                 • `app:threads config` 
                                     - Lists available configuration parameters.
                                 • `app:threads config subreddits get`
                                     - Displays current subreddits.
-                                • `app:threads config subreddits add redditName`
+                                • `app:threads config subreddits add subredditName`
                                     - Adds a subreddit.
-                                • `app:threads config subreddits remove redditName`
+                                • `app:threads config subreddits remove subredditName`
                                     - Removes a subreddit.
                                 • `app:threads config moods get`
                                     - Displays current mood configurations.
+                                • `app:threads config moods add`
+                                    - Interactively adds a mood configuration.
                                 • `app:threads config moods add moodKey`
-                                    - Adds a mood with a default configuration.
-                                • `app:threads config moods remove moodKey`
+                                    - Adds a mood non-interactively with default settings.
+                                • `app:threads config moods remove moodName`
                                     - Removes a mood.
             ✍️ audit       - Audit AI generation capabilities.
-            🤔 help         - Show this help message.
+            🤔 help        - Show this help message.
             
             ────────────────────────────
             Threadstorm - Powered by Threads API

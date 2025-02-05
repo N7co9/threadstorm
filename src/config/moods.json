@@ -1,0 +1,38 @@
+[
+    {
+        "name": "shitpost",
+        "modifier": "Ein extrem kurzer, pers\u00f6nlicher und belangloser Ton. Der Inhalt soll absichtlich unsinnig, oberfl\u00e4chlich und irrelevant wirken \u2013 ein lockerer, frecher Stil ohne Anspruch auf tiefgehende Information oder Analyse.",
+        "temperature": 0.9,
+        "chance": 15
+    },
+    {
+        "name": "politisch-engagiert",
+        "modifier": "Ein pr\u00e4gnanter, formeller Ton, der tiefgehende Analysen aktueller politischer Ereignisse liefert \u2013 sachlich, informativ und pointiert. Direkt, fesselnd und meinungsstark, um Debatten anzuregen und maximale Reichweite zu erzielen. Ohne Emojis oder unn\u00f6tige Ausschm\u00fcckungen, stattdessen mit klarer Haltung und scharfem Fokus auf das Wesentliche.",
+        "temperature": 0.6,
+        "chance": 20
+    },
+    {
+        "name": "pers\u00f6nlich-emotional",
+        "modifier": "Pers\u00f6nlich, emotional und mit einer Prise Humor \u2013 ein lebendiger, nahbarer Stil, der intime Erlebnisse im Kontext politischer Themen erz\u00e4hlt. Authentisch, direkt und mit einer individuellen Note, gepr\u00e4gt von regionalem Ausdruck, spontaner Satzstruktur und bewusst spielerischer Grammatik. Emojis gezielt eingesetzt, um Emotionen zu verst\u00e4rken und N\u00e4he zu schaffen \u2013 ein Beitrag, der nicht nur informiert, sondern ber\u00fchrt und Gespr\u00e4chsstoff liefert.",
+        "temperature": 0.8,
+        "chance": 15
+    },
+    {
+        "name": "emotional-sarkastisch",
+        "modifier": "Bissig, unversch\u00e4mt und mit maximaler Sprengkraft \u2013 ein kreativer, pers\u00f6nlicher Beitrag, der brandaktuelle Inside-Jokes und Memes aus der links-antikapitalistischen und marxistischen deutschen Bubble in gnadenlosen Sarkasmus packt. Radikal, respektlos und mit rabenschwarzem Humor formuliert, der die Grenzen des Sagbaren testet und maximal provoziert. Kein Hashtag-Safety-Net, nur scharfe Pointen, die treffen, wo es weh tut \u2013 ein Beitrag, der polarisiert, triggert und f\u00fcr hitzige Debatten sorgt.",
+        "temperature": 1,
+        "chance": 10
+    },
+    {
+        "name": "politisch-informativ",
+        "modifier": "Enth\u00fcllend, bissig und gnadenlos treffend \u2013 ein kreativer, humorvoller Beitrag, der die absurdesten, widerspr\u00fcchlichsten und kaum bekannten Funfacts aus der deutschen Politiklandschaft ans Licht zerrt. Ohne Hashtags, daf\u00fcr mit maximaler Provokation und schwarzem Humor, der zwischen staubtrockener Ironie und ungefiltertem Zynismus balanciert. Ein Beitrag, der Unwissenheit sprengt, Narrative aufbricht und garantiert daf\u00fcr sorgt, dass man sich fragt: Warum zur H\u00f6lle wusste ich das nicht schon fr\u00fcher?",
+        "temperature": 0.7,
+        "chance": 20
+    },
+    {
+        "name": "ausgewogen",
+        "modifier": "Reflektiert, nahbar und authentisch \u2013 ein ausgewogener Beitrag, der politische Themen mit pers\u00f6nlichen Einblicken verbindet. Mit einem sachlichen, aber lebendigen Ton, der komplexe Zusammenh\u00e4nge verst\u00e4ndlich macht, ohne den eigenen Standpunkt zu verstecken. Moderat lang, mit gezielt eingesetzten Emojis f\u00fcr Leichtigkeit und Pers\u00f6nlichkeit, ohne in Extreme zu verfallen. Ein Beitrag, der informiert, zum Nachdenken anregt und gleichzeitig Raum f\u00fcr individuelle Perspektiven l\u00e4sst.",
+        "temperature": 0.5,
+        "chance": 20
+    }
+]

@@ -3,147 +3,152 @@ declare(strict_types=1);
 
 namespace App\Service\Extension\AutoPost;
 
+use App\Common\DTO\MoodConfiguration;
+
 class MoodService
 {
     /**
-     * Default mood configurations.
-     *
-     * Each mood is keyed by its name with a corresponding modifier and temperature.
-     *
-     * @var array<string, array{modifier: string, temperature: float}>
+     * @var MoodConfiguration[]
      */
-    private array $moodConfigurations = [
-        'shitpost' => [
-            'modifier' => "Ein extrem kurzer, persönlicher und belangloser Ton. Der Inhalt soll absichtlich unsinnig, oberflächlich und irrelevant wirken – ein lockerer, frecher Stil ohne Anspruch auf tiefgehende Information oder Analyse.",
-            'temperature' => 0.9,
-        ],
-        'politisch-engagiert' => [
-            'modifier' => "Ein prägnanter, formeller Ton, der tiefgehende Analysen aktueller politischer Ereignisse liefert – sachlich, informativ und pointiert. Direkt, fesselnd und meinungsstark, um Debatten anzuregen und maximale Reichweite zu erzielen. Ohne Emojis oder unnötige Ausschmückungen, stattdessen mit klarer Haltung und scharfem Fokus auf das Wesentliche.",
-            'temperature' => 0.6,
-        ],
-        'persönlich-emotional' => [
-            'modifier' => "Persönlich, emotional und mit einer Prise Humor – ein lebendiger, nahbarer Stil, der intime Erlebnisse im Kontext politischer Themen erzählt. Authentisch, direkt und mit einer individuellen Note, geprägt von regionalem Ausdruck, spontaner Satzstruktur und bewusst spielerischer Grammatik. Emojis gezielt eingesetzt, um Emotionen zu verstärken und Nähe zu schaffen – ein Beitrag, der nicht nur informiert, sondern berührt und Gesprächsstoff liefert.",
-            'temperature' => 0.8,
-        ],
-        'emotional-sarkastisch' => [
-            'modifier' => "Bissig, unverschämt und mit maximaler Sprengkraft – ein kreativer, persönlicher Beitrag, der brandaktuelle Inside-Jokes und Memes aus der links-antikapitalistischen und marxistischen deutschen Bubble in gnadenlosen Sarkasmus packt. Radikal, respektlos und mit rabenschwarzem Humor formuliert, der die Grenzen des Sagbaren testet und maximal provoziert. Kein Hashtag-Safety-Net, nur scharfe Pointen, die treffen, wo es weh tut – ein Beitrag, der polarisiert, triggert und für hitzige Debatten sorgt.",
-            'temperature' => 1.0,
-        ],
-        'politisch-informativ' => [
-            'modifier' => "Enthüllend, bissig und gnadenlos treffend – ein kreativer, humorvoller Beitrag, der die absurdesten, widersprüchlichsten und kaum bekannten Funfacts aus der deutschen Politiklandschaft ans Licht zerrt. Ohne Hashtags, dafür mit maximaler Provokation und schwarzem Humor, der zwischen staubtrockener Ironie und ungefiltertem Zynismus balanciert. Ein Beitrag, der Unwissenheit sprengt, Narrative aufbricht und garantiert dafür sorgt, dass man sich fragt: Warum zur Hölle wusste ich das nicht schon früher?",
-            'temperature' => 0.7,
-        ],
-        'ausgewogen' => [
-            'modifier' => "Reflektiert, nahbar und authentisch – ein ausgewogener Beitrag, der politische Themen mit persönlichen Einblicken verbindet. Mit einem sachlichen, aber lebendigen Ton, der komplexe Zusammenhänge verständlich macht, ohne den eigenen Standpunkt zu verstecken. Moderat lang, mit gezielt eingesetzten Emojis für Leichtigkeit und Persönlichkeit, ohne in Extreme zu verfallen. Ein Beitrag, der informiert, zum Nachdenken anregt und gleichzeitig Raum für individuelle Perspektiven lässt.",
-            'temperature' => 0.5,
-        ],
-    ];
+    private array $moodConfigurations = [];
+
+    private const MOODS_FILE = __DIR__ . '/../../../config/moods.json';
+
+    public function __construct()
+    {
+        $this->loadMoodsFromFile();
+    }
 
     /**
-     * Chooses one of several moods based on random chance and returns an array
-     * with the keys 'mood', 'modifier' and 'temperature'.
+     * Loads moods from the JSON file.
+     */
+    private function loadMoodsFromFile(): void
+    {
+        if (file_exists(self::MOODS_FILE)) {
+            $json = file_get_contents(self::MOODS_FILE);
+            $data = json_decode($json, true);
+            if (is_array($data)) {
+                $this->moodConfigurations = [];
+                foreach ($data as $item) {
+                    if (
+                        isset($item['name'], $item['modifier'], $item['temperature'], $item['chance'])
+                    ) {
+                        $this->moodConfigurations[] = new MoodConfiguration(
+                            $item['name'],
+                            $item['modifier'],
+                            (float)$item['temperature'],
+                            (int)$item['chance']
+                        );
+                    }
+                }
+            }
+        } else {
+            $this->moodConfigurations = $this->getDefaultMoods();
+            $this->saveMoodsToFile();
+        }
+    }
+
+    /**
+     * Persists the current moods to the JSON file.
+     */
+    private function saveMoodsToFile(): void
+    {
+        $data = [];
+        foreach ($this->moodConfigurations as $mood) {
+            $data[] = [
+                'name' => $mood->getName(),
+                'modifier' => $mood->getModifier(),
+                'temperature' => $mood->getTemperature(),
+                'chance' => $mood->getChance(),
+            ];
+        }
+        file_put_contents(self::MOODS_FILE, json_encode($data, JSON_PRETTY_PRINT));
+    }
+
+    /**
+     * Returns the default mood configurations.
      *
-     * This method’s internal logic remains unchanged.
+     * @return MoodConfiguration[]
+     */
+    private function getDefaultMoods(): array
+    {
+        return [
+            new MoodConfiguration(
+                'shitpost',
+                "Ein extrem kurzer, persönlicher und belangloser Ton. Der Inhalt soll absichtlich unsinnig, oberflächlich und irrelevant wirken – ein lockerer, frecher Stil ohne Anspruch auf tiefgehende Information oder Analyse.",
+                0.9,
+                15
+            ),
+            new MoodConfiguration(
+                'politisch-engagiert',
+                "Ein prägnanter, formeller Ton, der tiefgehende Analysen aktueller politischer Ereignisse liefert – sachlich, informativ und pointiert. Direkt, fesselnd und meinungsstark, um Debatten anzuregen und maximale Reichweite zu erzielen. Ohne Emojis oder unnötige Ausschmückungen, stattdessen mit klarer Haltung und scharfem Fokus auf das Wesentliche.",
+                0.6,
+                20
+            ),
+            new MoodConfiguration(
+                'persönlich-emotional',
+                "Persönlich, emotional und mit einer Prise Humor – ein lebendiger, nahbarer Stil, der intime Erlebnisse im Kontext politischer Themen erzählt. Authentisch, direkt und mit einer individuellen Note, geprägt von regionalem Ausdruck, spontaner Satzstruktur und bewusst spielerischer Grammatik. Emojis gezielt eingesetzt, um Emotionen zu verstärken und Nähe zu schaffen – ein Beitrag, der nicht nur informiert, sondern berührt und Gesprächsstoff liefert.",
+                0.8,
+                15
+            ),
+            new MoodConfiguration(
+                'emotional-sarkastisch',
+                "Bissig, unverschämt und mit maximaler Sprengkraft – ein kreativer, persönlicher Beitrag, der brandaktuelle Inside-Jokes und Memes aus der links-antikapitalistischen und marxistischen deutschen Bubble in gnadenlosen Sarkasmus packt. Radikal, respektlos und mit rabenschwarzem Humor formuliert, der die Grenzen des Sagbaren testet und maximal provoziert. Kein Hashtag-Safety-Net, nur scharfe Pointen, die treffen, wo es weh tut – ein Beitrag, der polarisiert, triggert und für hitzige Debatten sorgt.",
+                1.0,
+                10
+            ),
+            new MoodConfiguration(
+                'politisch-informativ',
+                "Enthüllend, bissig und gnadenlos treffend – ein kreativer, humorvoller Beitrag, der die absurdesten, widersprüchlichsten und kaum bekannten Funfacts aus der deutschen Politiklandschaft ans Licht zerrt. Ohne Hashtags, dafür mit maximaler Provokation und schwarzem Humor, der zwischen staubtrockener Ironie und ungefiltertem Zynismus balanciert. Ein Beitrag, der Unwissenheit sprengt, Narrative aufbricht und garantiert dafür sorgt, dass man sich fragt: Warum zur Hölle wusste ich das nicht schon früher?",
+                0.7,
+                20
+            ),
+            new MoodConfiguration(
+                'ausgewogen',
+                "Reflektiert, nahbar und authentisch – ein ausgewogener Beitrag, der politische Themen mit persönlichen Einblicken verbindet. Mit einem sachlichen, aber lebendigen Ton, der komplexe Zusammenhänge verständlich macht, ohne den eigenen Standpunkt zu verstecken. Moderat lang, mit gezielt eingesetzten Emojis für Leichtigkeit und Persönlichkeit, ohne in Extreme zu verfallen. Ein Beitrag, der informiert, zum Nachdenken anregt und gleichzeitig Raum für individuelle Perspektiven lässt.",
+                0.5,
+                20
+            ),
+        ];
+    }
+
+    /**
+     * Chooses one mood based on random chance.
      *
      * @return array{mood: string, modifier: string, temperature: float}
      */
     public function chooseMood(): array
     {
-        $rand = random_int(1, 100);
-
-        if ($rand <= 15) { // 15%: Shitpost
-            return [
-                'mood' => 'shitpost',
-                'modifier' => $this->moodConfigurations['shitpost']['modifier'],
-                'temperature' => $this->moodConfigurations['shitpost']['temperature'],
-            ];
+        $totalChance = 1;
+        foreach ($this->moodConfigurations as $mood) {
+            $totalChance += $mood->getChance();
         }
-
-        if ($rand <= 35) { // 20% (15 < rand <= 35): Politisch-engagiert
-            return [
-                'mood' => 'politisch-engagiert',
-                'modifier' => $this->moodConfigurations['politisch-engagiert']['modifier'],
-                'temperature' => $this->moodConfigurations['politisch-engagiert']['temperature'],
-            ];
+        if ($totalChance < 1) {
+            throw new \RuntimeException('Total chance is less than 1.');
         }
-
-        if ($rand <= 50) { // 15% (35 < rand <= 50): Persönlich-emotional
-            return [
-                'mood' => 'persönlich-emotional',
-                'modifier' => $this->moodConfigurations['persönlich-emotional']['modifier'],
-                'temperature' => $this->moodConfigurations['persönlich-emotional']['temperature'],
-            ];
+        $rand = random_int(1, $totalChance);
+        foreach ($this->moodConfigurations as $mood) {
+            if ($rand <= $mood->getChance()) {
+                return [
+                    'mood' => $mood->getName(),
+                    'modifier' => $mood->getModifier(),
+                    'temperature' => $mood->getTemperature(),
+                ];
+            }
+            $rand -= $mood->getChance();
         }
-
-        if ($rand <= 60) { // 10% (50 < rand <= 60): Emotional-sarkastisch
-            return [
-                'mood' => 'emotional-sarkastisch',
-                'modifier' => $this->moodConfigurations['emotional-sarkastisch']['modifier'],
-                'temperature' => $this->moodConfigurations['emotional-sarkastisch']['temperature'],
-            ];
-        }
-
-        if ($rand <= 80) { // 20% (60 < rand <= 80): Politisch-informativ
-            return [
-                'mood' => 'politisch-informativ',
-                'modifier' => $this->moodConfigurations['politisch-informativ']['modifier'],
-                'temperature' => $this->moodConfigurations['politisch-informativ']['temperature'],
-            ];
-        }
-
-        // 20% (rand > 80): Ausgewogen
+        $last = end($this->moodConfigurations);
         return [
-            'mood' => 'ausgewogen',
-            'modifier' => $this->moodConfigurations['ausgewogen']['modifier'],
-            'temperature' => $this->moodConfigurations['ausgewogen']['temperature'],
+            'mood' => $last->getName(),
+            'modifier' => $last->getModifier(),
+            'temperature' => $last->getTemperature(),
         ];
     }
 
     /**
-     * Returns a time reference based on the current time if the mood contains 'emotional'
-     * and a random chance succeeds (20% chance). Returns an empty string otherwise.
+     * Returns all mood configurations.
      *
-     * @param string $currentMood
-     * @return string
-     */
-    public function getTimeReference(string $currentMood): string
-    {
-        if (str_contains($currentMood, 'emotional') && random_int(1, 100) <= 20) {
-            $hour = (int)(new \DateTime())->format('H');
-            if ($hour < 7) {
-                return "Frühmorgens";
-            }
-
-            if ($hour < 9) {
-                return "Morgens";
-            }
-
-            if ($hour < 20) {
-                return "Spätnachmittags";
-            }
-
-            return "Nachts";
-        }
-        return "";
-    }
-
-    /**
-     * Determines the consistency threshold based on the previous mood and the current mood.
-     * If the previous mood exists and differs from the current mood, a lower threshold is applied.
-     *
-     * @param string|null $previousMood
-     * @param string $currentMood
-     * @return int
-     */
-    public function getConsistencyThreshold(?string $previousMood, string $currentMood): int
-    {
-        return ($previousMood !== null && $previousMood !== $currentMood) ? 50 : 70;
-    }
-
-    /**
-     * Retrieves the current mood configurations.
-     *
-     * @return array<string, array{modifier: string, temperature: float}>
+     * @return MoodConfiguration[]
      */
     public function getMoods(): array
     {
@@ -151,37 +156,70 @@ class MoodService
     }
 
     /**
-     * Sets the mood configurations.
+     * Replaces the current moods and persists them.
      *
-     * @param array<string, array{modifier: string, temperature: float}> $moods
+     * @param MoodConfiguration[] $moods
      */
     public function setMoods(array $moods): void
     {
         $this->moodConfigurations = $moods;
+        $this->saveMoodsToFile();
     }
 
     /**
-     * Adds a new mood configuration.
+     * Adds a mood configuration and persists the change.
      *
-     * @param string $mood The mood key to add.
-     * @param array{modifier: string, temperature: float} $configuration The configuration for the mood.
+     * @param MoodConfiguration $moodConfiguration
      */
-    public function addMood(string $mood, array $configuration): void
+    public function addMood(MoodConfiguration $moodConfiguration): void
     {
-        if (!isset($this->moodConfigurations[$mood])) {
-            $this->moodConfigurations[$mood] = $configuration;
+        foreach ($this->moodConfigurations as $mood) {
+            if ($mood->getName() === $moodConfiguration->getName()) {
+                return;
+            }
         }
+        $this->moodConfigurations[] = $moodConfiguration;
+        $this->saveMoodsToFile();
     }
 
     /**
-     * Removes a mood configuration.
+     * Removes a mood configuration by name and persists the change.
      *
-     * @param string $mood The mood key to remove.
+     * @param string $moodName
      */
-    public function removeMood(string $mood): void
+    public function removeMood(string $moodName): void
     {
-        if (isset($this->moodConfigurations[$mood])) {
-            unset($this->moodConfigurations[$mood]);
+        foreach ($this->moodConfigurations as $key => $mood) {
+            if ($mood->getName() === $moodName) {
+                unset($this->moodConfigurations[$key]);
+                $this->moodConfigurations = array_values($this->moodConfigurations);
+                $this->saveMoodsToFile();
+                return;
+            }
         }
+    }
+
+    // The remaining methods (getTimeReference, getConsistencyThreshold) remain unchanged.
+    public function getTimeReference(string $currentMood): string
+    {
+        if (str_contains($currentMood, 'emotional') && random_int(1, 100) <= 20) {
+            $hour = (int)(new \DateTime())->format('H');
+            if ($hour < 7) {
+                return "Frühmorgens";
+            }
+            if ($hour < 9) {
+                return "Morgens";
+            }
+            if ($hour < 20) {
+                return "Spätnachmittags";
+            }
+            return "Nachts";
+        }
+        return "";
+    }
+
+    public function getConsistencyThreshold(?string $previousMood, string $currentMood): int
+    {
+        return ($previousMood !== null && $previousMood !== $currentMood) ? 50 : 70;
     }
 }

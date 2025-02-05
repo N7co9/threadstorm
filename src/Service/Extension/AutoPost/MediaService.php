@@ -11,21 +11,48 @@ use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
 
 class MediaService
 {
-    private array $subreddits = [
-        'ich_iel',
-        'ich_politik',
-        'Staiy',
-        'PoliticalHumor',
-        'MemeEconomy',
-        'HistoryMemes'
-    ];
+    private array $subreddits = [];
 
     private string $redditApiBaseUrl = 'https://www.reddit.com/r/';
     private $httpClient;
+    private const SUBREDDITS_FILE = __DIR__ . '/../../../config/subreddits.json';
 
     public function __construct()
     {
         $this->httpClient = HttpClient::create();
+        $this->loadSubredditsFromFile();
+    }
+
+    /**
+     * Loads subreddits from a JSON file.
+     */
+    private function loadSubredditsFromFile(): void
+    {
+        if (file_exists(self::SUBREDDITS_FILE)) {
+            $json = file_get_contents(self::SUBREDDITS_FILE);
+            $data = json_decode($json, true);
+            if (is_array($data)) {
+                $this->subreddits = $data;
+                return;
+            }
+        }
+        $this->subreddits = [
+            'ich_iel',
+            'ich_politik',
+            'Staiy',
+            'PoliticalHumor',
+            'MemeEconomy',
+            'HistoryMemes'
+        ];
+        $this->saveSubredditsToFile();
+    }
+
+    /**
+     * Persists the current subreddits to the JSON file.
+     */
+    private function saveSubredditsToFile(): void
+    {
+        file_put_contents(self::SUBREDDITS_FILE, json_encode($this->subreddits, JSON_PRETTY_PRINT));
     }
 
     /**
@@ -39,13 +66,14 @@ class MediaService
     }
 
     /**
-     * Sets the list of subreddits.
+     * Sets the list of subreddits and persists the change.
      *
      * @param array $subreddits The new array of subreddits.
      */
     public function setSubreddits(array $subreddits): void
     {
         $this->subreddits = $subreddits;
+        $this->saveSubredditsToFile();
     }
 
     /**
@@ -53,44 +81,58 @@ class MediaService
      *
      * @return array|null The image details (URL, Base64 string, and type), or null if no image could be fetched.
      */
+    /**
+     * Fetches an image from a random subreddit and returns its Base64 representation along with its type.
+     * If the image cannot be fetched or processed, it retries with a different subreddit (up to 3 attempts).
+     *
+     * @return array|null The image details (URL, Base64 string, and type), or null if no image could be fetched.
+     */
     public function fetchRandomImageAsBase64(): ?array
     {
-        $randomSubreddit = $this->getRandomSubreddit();
-        $url = $this->redditApiBaseUrl . $randomSubreddit . '/top.json?limit=10&t=day';
+        $maxAttempts = 3;
+        $attempt = 0;
+        while ($attempt < $maxAttempts) {
+            $attempt++;
+            $randomSubreddit = $this->getRandomSubreddit();
+            $url = $this->redditApiBaseUrl . $randomSubreddit . '/top.json?limit=10&t=day';
 
-        try {
-            $response = $this->httpClient->request('GET', $url, [
-                'headers' => [
-                    'User-Agent' => 'generic-user/1.0'
-                ]
-            ]);
+            try {
+                $response = $this->httpClient->request('GET', $url, [
+                    'headers' => [
+                        'User-Agent' => 'generic-user/1.0'
+                    ]
+                ]);
+                $data = $response->toArray();
 
-            $data = $response->toArray();
+                if (empty($data['data']['children'])) {
+                    continue;
+                }
 
-            if (empty($data['data']['children'])) {
-                return null;
+                $imageUrl = $this->getImageFromPosts($data['data']['children']);
+                if (!$imageUrl) {
+                    continue;
+                }
+
+                $imageType = $this->getImageTypeFromUrl($imageUrl);
+                $base64Image = $this->convertImageToBase64($imageUrl);
+
+                if ($base64Image === null) {
+                    continue;
+                }
+
+                return [
+                    'imageUrl' => $imageUrl,
+                    'base64' => $base64Image,
+                    'type' => $imageType
+                ];
+            } catch (TransportExceptionInterface|
+            ClientExceptionInterface|
+            RedirectionExceptionInterface|
+            ServerExceptionInterface $e) {
+                continue;
             }
-
-            $imageUrl = $this->getImageFromPosts($data['data']['children']);
-            if (!$imageUrl) {
-                return null;
-            }
-
-            $imageType = $this->getImageTypeFromUrl($imageUrl);
-
-            return [
-                'imageUrl' => $imageUrl,
-                'base64' => $this->convertImageToBase64($imageUrl),
-                'type' => $imageType
-            ];
-
-        } catch (TransportExceptionInterface|
-        ClientExceptionInterface|
-        RedirectionExceptionInterface|
-        ServerExceptionInterface $e) {
-            echo 'Error fetching image from subreddit: ' . $e->getMessage();
-            return null;
         }
+        return null;
     }
 
     /**

@@ -5,41 +5,70 @@ namespace App\Command;
 
 use App\Common\DTO\MoodConfiguration;
 use App\Service\BaseService;
-use App\Service\Extension\AutoPost\AutoPostService;
-use App\Service\Extension\AutoPost\ConfigurationService;
+use App\Service\Extension\AutoPost\AutoPost;
+use App\Service\Extension\AutoPost\External\AuditGenerationService;
+use App\Service\Extension\AutoPost\Internal\ConfigurationService;
+use App\Service\Extension\AutoReply\AutoReply;
+use App\Service\Extension\AutoReply\External\AuditReplyGenerationService;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
+use Symfony\Component\Console\Question\ChoiceQuestion;
 use Symfony\Component\Console\Question\Question;
 
 #[AsCommand(name: 'app:threads', description: 'Interacts with the Threads API via Threadstorm CLI')]
 class EntrypointCommand extends Command
 {
     private BaseService $threadsService;
-    private AutoPostService $autoPostService;
+    private AutoPost $autoPostService;
+    private AutoReply $autoReplyService;
     private ConfigurationService $configurationService;
+    private AuditGenerationService $auditGenerationService;
+    private AuditReplyGenerationService $auditReplyGenerationService;
 
     public function __construct(
-        BaseService          $threadsService,
-        AutoPostService      $autoPostService,
-        ConfigurationService $configurationService
+        BaseService                 $threadsService,
+        AutoPost                    $autoPostService,
+        AutoReply                   $autoReplyService,
+        ConfigurationService        $configurationService,
+        AuditGenerationService      $auditGenerationService,
+        AuditReplyGenerationService $auditReplyGenerationService
     )
     {
         parent::__construct();
         $this->threadsService = $threadsService;
         $this->autoPostService = $autoPostService;
+        $this->autoReplyService = $autoReplyService;
         $this->configurationService = $configurationService;
+        $this->auditGenerationService = $auditGenerationService;
+        $this->auditReplyGenerationService = $auditReplyGenerationService;
     }
 
     protected function configure(): void
     {
         $this
-            ->addArgument('action', InputArgument::REQUIRED, 'Action to perform: list, post, status, get, delete, auto-post, config, audit, help')
-            ->addArgument('value', InputArgument::OPTIONAL, 'For "config": the configuration parameter name (e.g. subreddits, moods); for other actions, see documentation.')
-            ->addArgument('context', InputArgument::OPTIONAL, 'For "config": the operation to perform (get, add, remove); for other actions, optional context.')
-            ->addArgument('extra', InputArgument::OPTIONAL, 'For "config": the value to add or remove.')
+            ->addArgument(
+                'action',
+                InputArgument::REQUIRED,
+                'Action to perform: list, post, status, get, delete, auto-post, auto-reply, config, audit, help'
+            )
+            ->addArgument(
+                'value',
+                InputArgument::OPTIONAL,
+                'For "config": the configuration parameter name (e.g. subreddits, moods); for "audit": optional thread id or mode.'
+            )
+            ->addArgument(
+                'context',
+                InputArgument::OPTIONAL,
+                'For "config": the operation to perform (get, add, remove); for other actions, optional context.'
+            )
+            ->addArgument(
+                'extra',
+                InputArgument::OPTIONAL,
+                'For "config": the value to add or remove.'
+            )
             ->setHelp($this->getDetailedHelpText());
     }
 
@@ -48,7 +77,6 @@ class EntrypointCommand extends Command
         $action = $input->getArgument('action');
         $value = $input->getArgument('value');
         $context = $input->getArgument('context');
-        $extra = $input->getArgument('extra');
 
         try {
             switch ($action) {
@@ -81,20 +109,42 @@ class EntrypointCommand extends Command
                         $output->writeln('<error>❌  A range is required for auto-post (allowed: 1-3, 3-5, 5-10).</error>');
                         return Command::FAILURE;
                     }
-                    $output->writeln('<info>🚀  Starting auto-post process via Threadstorm. Press Ctrl+C to terminate.</info>');
+                    $output->writeln('<info>🚀  Starting persistent auto-post process via Threadstorm. Press Ctrl+C to terminate.</info>');
                     $this->autoPostService->autoPost($value, $context);
-                    return Command::SUCCESS;
+                case 'auto-reply':
+                    $output->writeln('<info>🚀  Starting persistent auto-reply process. Press Ctrl+C to terminate.</info>');
+                    $this->autoReplyService->autoReply($context);
+                    break;
                 case 'audit':
-                    $mode = $value ? strtolower($value) : 'text';
-                    $result = $this->autoPostService->auditGenerate($mode, $context);
-                    $output->writeln($result);
-                    return Command::SUCCESS;
+                    $helper = $this->getHelper('question');
+                    $auditChoices = ['auto-reply', 'auto-post'];
+                    $auditQuestion = new ChoiceQuestion(
+                        'Which service would you like to audit? (Select one)',
+                        $auditChoices,
+                        0
+                    );
+                    $auditQuestion->setErrorMessage('Selection %s is invalid.');
+                    $serviceChoice = $helper->ask($input, $output, $auditQuestion);
+
+                    if ($serviceChoice === 'auto-reply') {
+                        $report = $this->auditReplyGenerationService->auditReply($value, $context);
+                        $output->writeln($report);
+                    } elseif ($serviceChoice === 'auto-post') {
+                        $mode = $value ? strtolower($value) : 'text';
+                        $result = $this->auditGenerationService->auditGenerate($mode, $context);
+                        $output->writeln($result);
+                    } else {
+                        $output->writeln('<error>❌  Invalid service selection.</error>');
+                        return Command::FAILURE;
+                    }
+                    break;
                 case 'config':
                     return $this->handleConfigAction($input, $output);
                 default:
                     $output->writeln('<error>❌  Unknown action. Use "help" to see available commands.</error>');
                     return Command::FAILURE;
             }
+            return Command::SUCCESS;
         } catch (\Throwable $e) {
             $output->writeln("<error>❌  An error occurred: " . $e->getMessage() . "</error>");
             $output->writeln("<error>Stack trace: " . $e->getTraceAsString() . "</error>");
@@ -102,35 +152,48 @@ class EntrypointCommand extends Command
         }
     }
 
-    /**
-     * Handles configuration related actions.
-     *
-     * Command syntax:
-     * - `app:threads config` -> Lists available configuration parameters.
-     * - `app:threads config <parameter>` -> Shows the current value of that parameter.
-     * - `app:threads config <parameter> get` -> Same as above.
-     * - `app:threads config <parameter> add <value>` -> Adds a value (or, for moods, initiates interactive mode if <value> is omitted).
-     * - `app:threads config <parameter> remove <value>` -> Removes a value.
-     */
     private function handleConfigAction(InputInterface $input, OutputInterface $output): int
     {
-        $parameter = $input->getArgument('value');
-        $operation = $input->getArgument('context') ? strtolower($input->getArgument('context')) : 'get';
-        $extra = $input->getArgument('extra');
+        $helper = $this->getHelper('question');
+        $configOptions = $this->configurationService->getConfigurationOptions();
 
-        // If no parameter is selected, list available configuration options.
+        $parameter = $input->getArgument('value');
         if (empty($parameter)) {
-            $configOptions = $this->configurationService->getConfigurationOptions();
-            $output->writeln('<info>Available Configuration Parameters:</info>');
-            $i = 1;
+            $choices = [];
             foreach ($configOptions as $key => $option) {
-                $output->writeln("{$i}. {$option['label']} (key: {$key}) - {$option['description']}");
-                $i++;
+                $choices[$key] = "{$option['label']} (key: {$key})";
             }
-            return Command::SUCCESS;
+            $questionParam = new ChoiceQuestion(
+                'Select configuration parameter:',
+                $choices,
+                array_key_first($choices)
+            );
+            $questionParam->setErrorMessage('Selection %s is invalid.');
+            $selected = $helper->ask($input, $output, $questionParam);
+            preg_match('/\(key: ([^)]+)\)/', $selected, $matches);
+            $parameter = $matches[1] ?? null;
+            if ($parameter === null) {
+                $output->writeln('<error>Could not determine configuration parameter.</error>');
+                return Command::FAILURE;
+            }
         }
 
-        // Handle operations for each parameter.
+        $operation = $input->getArgument('context');
+        if (empty($operation)) {
+            $operationChoices = ['get', 'add', 'remove'];
+            $questionOp = new ChoiceQuestion(
+                'Select operation:',
+                $operationChoices,
+                0
+            );
+            $questionOp->setErrorMessage('Selection %s is invalid.');
+            $operation = strtolower($helper->ask($input, $output, $questionOp));
+        } else {
+            $operation = strtolower($operation);
+        }
+
+        $extra = $input->getArgument('extra');
+
         switch ($parameter) {
             case 'subreddits':
                 if ($operation === 'get') {
@@ -184,16 +247,12 @@ class EntrypointCommand extends Command
                         $output->writeln("<info>Mood '{$extra}' added with default configuration.</info>");
                         return Command::SUCCESS;
                     }
-                    // Otherwise, perform interactive mood addition.
-                    $helper = $this->getHelper('question');
-
                     $questionName = new Question('Enter the name for the new mood: ');
                     $name = $helper->ask($input, $output, $questionName);
                     if (!$name) {
                         $output->writeln('<error>Mood name cannot be empty.</error>');
                         return Command::FAILURE;
                     }
-
                     $questionTemp = new Question('Enter the temperature for this mood (float): ');
                     $temperatureInput = $helper->ask($input, $output, $questionTemp);
                     if (!is_numeric($temperatureInput)) {
@@ -201,14 +260,12 @@ class EntrypointCommand extends Command
                         return Command::FAILURE;
                     }
                     $temperature = (float)$temperatureInput;
-
                     $questionModifier = new Question('Enter the modifier text for this mood: ');
                     $modifier = $helper->ask($input, $output, $questionModifier);
                     if (!$modifier) {
                         $output->writeln('<error>Modifier cannot be empty.</error>');
                         return Command::FAILURE;
                     }
-
                     $questionChance = new Question('Enter the chance of occurrence for this mood (integer percentage): ');
                     $chanceInput = $helper->ask($input, $output, $questionChance);
                     if (!is_numeric($chanceInput)) {
@@ -216,7 +273,6 @@ class EntrypointCommand extends Command
                         return Command::FAILURE;
                     }
                     $chance = (int)$chanceInput;
-
                     $moodConfig = new MoodConfiguration($name, $modifier, $temperature, $chance);
                     $this->configurationService->addMood($moodConfig);
                     $output->writeln("<info>Mood '{$name}' added successfully.</info>");
@@ -265,25 +321,9 @@ class EntrypointCommand extends Command
             🔎 get          - Retrieve details of a thread.
             🛑 delete       - Delete a thread.
             🤖 auto-post    - Start the auto-post process.
+            🤖 auto-reply   - Start the persistent auto-reply process.
             ⚙️ config       - Configure auto-post parameters.
-                              Examples:
-                                • `app:threads config` 
-                                    - Lists available configuration parameters.
-                                • `app:threads config subreddits get`
-                                    - Displays current subreddits.
-                                • `app:threads config subreddits add subredditName`
-                                    - Adds a subreddit.
-                                • `app:threads config subreddits remove subredditName`
-                                    - Removes a subreddit.
-                                • `app:threads config moods get`
-                                    - Displays current mood configurations.
-                                • `app:threads config moods add`
-                                    - Interactively adds a mood configuration.
-                                • `app:threads config moods add moodKey`
-                                    - Adds a mood non-interactively with default settings.
-                                • `app:threads config moods remove moodName`
-                                    - Removes a mood.
-            ✍️ audit       - Audit AI generation capabilities.
+            ✍️ audit       - Manually trigger an audit reply or audit post.
             🤔 help        - Show this help message.
             
             ────────────────────────────

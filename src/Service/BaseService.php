@@ -111,6 +111,51 @@ class BaseService
         return $publishData['id'];
     }
 
+    public function postReply(string $message, string $replyId): string
+    {
+        $createUrl = "{$this->apiBaseUrl}/{$this->threadsUserId}/threads";
+
+        try {
+            $response = $this->client->request('POST', $createUrl, [
+                'query' => [
+                    'media_type' => 'text',
+                    'text' => $message,
+                    'reply_to_id' => $replyId,
+                    'access_token' => $this->accessToken,
+                ],
+            ]);
+            $data = $response->toArray();
+        } catch (\Throwable $e) {
+            throw new \RuntimeException("❌  Failed to create thread (creation phase): " . $e->getMessage(), 0, $e);
+        }
+
+        if (empty($data['id'])) {
+            throw new \RuntimeException("❌  Thread creation response did not contain an ID.");
+        }
+
+        $creationId = $data['id'];
+        $publishUrl = "{$this->apiBaseUrl}/{$this->threadsUserId}/threads_publish";
+
+        try {
+            $response = $this->client->request('POST', $publishUrl, [
+                'query' => [
+                    'creation_id' => $creationId,
+                    'access_token' => $this->accessToken,
+                ],
+            ]);
+            $publishData = $response->toArray();
+        } catch (\Throwable $e) {
+            throw new \RuntimeException("❌  Failed to publish thread: " . $e->getMessage(), 0, $e);
+        }
+
+        if (empty($publishData['id'])) {
+            throw new \RuntimeException("❌  Thread publish response did not contain an ID.");
+        }
+
+        return $publishData['id'];
+    }
+
+
     /**
      * Retrieves details of a specific thread by its ID.
      *
@@ -132,6 +177,23 @@ class BaseService
             return $response->toArray();
         } catch (\Throwable $e) {
             throw new \RuntimeException("⚠️  Failed to retrieve thread with ID {$threadId}: " . $e->getMessage(), 0, $e);
+        }
+    }
+
+    public function getRepliesById(string $threadId): array
+    {
+        $url = "{$this->apiBaseUrl}/{$threadId}/replies";
+
+        try {
+            $response = $this->client->request('GET', $url, [
+                'query' => [
+                    'fields' => 'id,timestamp,username,text,permalink,replied_to,is_reply_owned_by_me',
+                    'access_token' => $this->accessToken,
+                ],
+            ]);
+            return $response->toArray();
+        } catch (\Throwable $e) {
+            throw new \RuntimeException("⚠️  Failed to retrieve thread replies with ID {$threadId}: " . $e->getMessage(), 0, $e);
         }
     }
 

@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-namespace App\Service\Extension\AutoPost;
+namespace App\Service\Extension\AutoPost\Internal;
 
 use App\Common\DTO\MoodConfiguration;
 
@@ -12,7 +12,7 @@ class MoodService
      */
     private array $moodConfigurations = [];
 
-    private const MOODS_FILE = __DIR__ . '/../../../config/moods.json';
+    private const MOODS_FILE = __DIR__ . '/../../../../config/moods.json';
 
     public function __construct()
     {
@@ -75,33 +75,33 @@ class MoodService
         return [
             new MoodConfiguration(
                 'shitpost',
-                "Ein extrem kurzer, persönlicher und belangloser Ton. Der Inhalt soll absichtlich unsinnig, oberflächlich und irrelevant wirken – ein lockerer, frecher Stil ohne Anspruch auf tiefgehende Information oder Analyse.",
+                "Ein extrem kurzer, aus wenigen Wörtern bestehender, persönlicher und belangloser Ton. Der Inhalt soll absichtlich unsinnig, oberflächlich und irrelevant wirken – ein lockerer, frecher Stil ohne Anspruch auf tiefgehende Information oder Analyse.",
                 0.9,
-                15
+                25
             ),
             new MoodConfiguration(
                 'politisch-engagiert',
                 "Ein prägnanter, formeller Ton, der tiefgehende Analysen aktueller politischer Ereignisse liefert – sachlich, informativ und pointiert. Direkt, fesselnd und meinungsstark, um Debatten anzuregen und maximale Reichweite zu erzielen. Ohne Emojis oder unnötige Ausschmückungen, stattdessen mit klarer Haltung und scharfem Fokus auf das Wesentliche.",
                 0.6,
-                20
+                10
             ),
             new MoodConfiguration(
                 'persönlich-emotional',
                 "Persönlich, emotional und mit einer Prise Humor – ein lebendiger, nahbarer Stil, der intime Erlebnisse im Kontext politischer Themen erzählt. Authentisch, direkt und mit einer individuellen Note, geprägt von regionalem Ausdruck, spontaner Satzstruktur und bewusst spielerischer Grammatik. Emojis gezielt eingesetzt, um Emotionen zu verstärken und Nähe zu schaffen – ein Beitrag, der nicht nur informiert, sondern berührt und Gesprächsstoff liefert.",
                 0.8,
-                15
+                20
             ),
             new MoodConfiguration(
                 'emotional-sarkastisch',
                 "Bissig, unverschämt und mit maximaler Sprengkraft – ein kreativer, persönlicher Beitrag, der brandaktuelle Inside-Jokes und Memes aus der links-antikapitalistischen und marxistischen deutschen Bubble in gnadenlosen Sarkasmus packt. Radikal, respektlos und mit rabenschwarzem Humor formuliert, der die Grenzen des Sagbaren testet und maximal provoziert. Kein Hashtag-Safety-Net, nur scharfe Pointen, die treffen, wo es weh tut – ein Beitrag, der polarisiert, triggert und für hitzige Debatten sorgt.",
                 1.0,
-                10
+                20
             ),
             new MoodConfiguration(
                 'politisch-informativ',
                 "Enthüllend, bissig und gnadenlos treffend – ein kreativer, humorvoller Beitrag, der die absurdesten, widersprüchlichsten und kaum bekannten Funfacts aus der deutschen Politiklandschaft ans Licht zerrt. Ohne Hashtags, dafür mit maximaler Provokation und schwarzem Humor, der zwischen staubtrockener Ironie und ungefiltertem Zynismus balanciert. Ein Beitrag, der Unwissenheit sprengt, Narrative aufbricht und garantiert dafür sorgt, dass man sich fragt: Warum zur Hölle wusste ich das nicht schon früher?",
                 0.7,
-                20
+                15
             ),
             new MoodConfiguration(
                 'ausgewogen',
@@ -199,7 +199,6 @@ class MoodService
         }
     }
 
-    // The remaining methods (getTimeReference, getConsistencyThreshold) remain unchanged.
     public function getTimeReference(string $currentMood): string
     {
         if (str_contains($currentMood, 'emotional') && random_int(1, 100) <= 20) {
@@ -220,6 +219,6 @@ class MoodService
 
     public function getConsistencyThreshold(?string $previousMood, string $currentMood): int
     {
-        return ($previousMood !== null && $previousMood !== $currentMood) ? 50 : 70;
+        return ($previousMood !== null && $previousMood !== $currentMood) ? 35 : 70;
     }
 }

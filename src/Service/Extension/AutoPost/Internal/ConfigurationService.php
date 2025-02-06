@@ -1,9 +1,10 @@
 <?php
 declare(strict_types=1);
 
-namespace App\Service\Extension\AutoPost;
+namespace App\Service\Extension\AutoPost\Internal;
 
 use App\Common\DTO\MoodConfiguration;
+use App\Service\Extension\AutoPost\External\MediaService;
 
 class ConfigurationService
 {

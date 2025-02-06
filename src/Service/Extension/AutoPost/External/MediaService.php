@@ -1,8 +1,9 @@
 <?php
 declare(strict_types=1);
 
-namespace App\Service\Extension\AutoPost;
+namespace App\Service\Extension\AutoPost\External;
 
+use Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface;
 use Symfony\Component\HttpClient\HttpClient;
 use Symfony\Contracts\HttpClient\Exception\ClientExceptionInterface;
 use Symfony\Contracts\HttpClient\Exception\RedirectionExceptionInterface;
@@ -12,13 +13,23 @@ use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
 class MediaService
 {
     private array $subreddits = [];
-
-    private string $redditApiBaseUrl = 'https://www.reddit.com/r/';
+    private string $redditApiBaseUrl = 'https://oauth.reddit.com/r/';
     private $httpClient;
-    private const SUBREDDITS_FILE = __DIR__ . '/../../../config/subreddits.json';
+    private ParameterBagInterface $params;
+    private string $clientId;
+    private string $clientSecret;
+    private string $userAgent;
+    private ?string $accessToken = null;
 
-    public function __construct()
+    private const SUBREDDITS_FILE = __DIR__ . '/../../../../config/subreddits.json';
+
+    public function __construct(ParameterBagInterface $params)
     {
+        $this->params = $params;
+        $this->clientId = $this->params->get('REDDIT_CLIENT_ID');
+        $this->clientSecret = $this->params->get('REDDIT_CLIENT_SECRET');
+        $this->userAgent = $this->params->get('REDDIT_USER_AGENT');
+
         $this->httpClient = HttpClient::create();
         $this->loadSubredditsFromFile();
     }
@@ -77,10 +88,40 @@ class MediaService
     }
 
     /**
-     * Fetches an image from a random subreddit and returns its Base64 representation along with its type.
+     * Always requests a new access token using the client credentials grant.
      *
-     * @return array|null The image details (URL, Base64 string, and type), or null if no image could be fetched.
+     * @return string|null
      */
+    private function getAccessToken(): ?string
+    {
+        $tokenUrl = 'https://www.reddit.com/api/v1/access_token';
+        $basicAuth = base64_encode($this->clientId . ':' . $this->clientSecret);
+
+        try {
+            $response = $this->httpClient->request('POST', $tokenUrl, [
+                'headers' => [
+                    'Authorization' => 'Basic ' . $basicAuth,
+                    'User-Agent' => $this->userAgent,
+                ],
+                'body' => [
+                    'grant_type' => 'client_credentials'
+                ]
+            ]);
+
+            $data = $response->toArray();
+            if (isset($data['access_token'], $data['expires_in'])) {
+                $this->accessToken = $data['access_token'];
+                return $this->accessToken;
+            }
+        } catch (TransportExceptionInterface|
+        ClientExceptionInterface|
+        RedirectionExceptionInterface|
+        ServerExceptionInterface $e) {
+            echo 'Error fetching access token: ' . $e->getMessage();
+        }
+        return null;
+    }
+
     /**
      * Fetches an image from a random subreddit and returns its Base64 representation along with its type.
      * If the image cannot be fetched or processed, it retries with a different subreddit (up to 3 attempts).
@@ -96,10 +137,16 @@ class MediaService
             $randomSubreddit = $this->getRandomSubreddit();
             $url = $this->redditApiBaseUrl . $randomSubreddit . '/top.json?limit=10&t=day';
 
+            $accessToken = $this->getAccessToken();
+            if (!$accessToken) {
+                return null;
+            }
+
             try {
                 $response = $this->httpClient->request('GET', $url, [
                     'headers' => [
-                        'User-Agent' => 'generic-user/1.0'
+                        'User-Agent' => $this->userAgent,
+                        'Authorization' => 'Bearer ' . $accessToken,
                     ]
                 ]);
                 $data = $response->toArray();

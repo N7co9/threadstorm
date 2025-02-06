@@ -1,171 +1,182 @@
-# Threadstorm 🌩️  
-**Eine moderne CLI zur Interaktion mit der Threads API und automatisierten AI-generierten Posts.**
+# Threadstorm CLI
 
----
+## Overview
 
-## Inhaltsverzeichnis
-1. [Überblick](#überblick)
-2. [Installation](#installation)
-3. [Konfiguration](#konfiguration)
-4. [Verwendung](#verwendung)
-5. [Fehlerbehandlung](#fehlerbehandlung)
-6. [Support](#support)
+**Threadstorm CLI** is a command-line tool designed to interact with the Threads API. It allows users to automate post creation, manage replies, audit interactions, and configure various aspects of their posting behavior.
 
----
+## Features
 
-## Überblick
-
-**Threadstorm** ist eine Symfony-basierte CLI-Anwendung, die:
-- Threads auf der Meta Threads API erstellt, listet, abruft und löscht.
-- Automatische Post-Generierung basierend auf AI unterstützt.
-- Ein modernes, visuell ansprechendes CLI-Erlebnis bietet.
-
----
+- 📜 **List threads**: Retrieve all existing threads
+- 📡 **Post threads**: Create a new thread
+- 🔌 **Check API status**: Verify the API connection
+- 🔎 **Retrieve threads**: Get details of specific threads
+- 🛑 **Delete threads**: Remove a thread
+- 🤖 **Auto-Posting**: Automate thread creation
+- 🤖 **Auto-Reply**: Automate responses to threads
+- ⚙️ **Configuration Management**: Adjust parameters for auto-posting
+- ✍️ **Audit Mode**: Review the performance of auto-posting and auto-reply
 
 ## Installation
 
-### Voraussetzungen
-- PHP 8.2 oder höher
-- Composer
-- Zugang zu einer gültigen Threads API (Meta Threads)
-- Anthropics Claude API-Schlüssel
+Clone the repository and install dependencies:
 
-### Schritte
-1. **Repository klonen:**
-   ```bash
-   git clone https://github.com/dein-benutzername/threadstorm.git
-   cd threadstorm
-   ```
-
-2. **Abhängigkeiten installieren:**
-   ```bash
-   composer install
-   ```
-
-3. **Umgebungsvariablen konfigurieren:**  
-   Kopiere `.env`:
-   ```bash
-   cp .env .env.local
-   ```
-   Trage deine API-Schlüssel und andere Konfigurationswerte ein (siehe [Konfiguration](#konfiguration)).
-
-4. **Symfony Server starten (optional für Debugging):**
-   ```bash
-   symfony server:start
-   ```
-
----
-
-## Konfiguration
-
-### Umgebungsvariablen
-Öffne die Datei `.env.local` und füge die benötigten Schlüssel hinzu:
-
-```env
-APP_ENV=dev
-APP_SECRET=dein_app_secret
-
-# Meta Threads API
-THREADS_ACCESS_TOKEN=dein_access_token
-THREADS_USER_ID=dein_user_id
-
-# Anthropics API
-ANTHROPIC_API_KEY=dein_claude_api_key
+```sh
+git clone https://github.com/yourusername/threadstorm-cli.git
+cd threadstorm-cli
+composer install
 ```
 
-**Hinweis:** Verwende keine echten Produktionsschlüssel in einer dev-Umgebung.
+## Requirements
 
----
+Before running the application, ensure you have the following credentials:
 
-## Verwendung
+- `THREADS_ACCESS_TOKEN`
+- `THREADS_USER_ID`
+- `ANTHROPIC_API_KEY`
+- `REDDIT_CLIENT_ID`
+- `REDDIT_CLIENT_SECRET`
+- `REDDIT_USER_AGENT`
 
-Starte den CLI-Befehl:
-```bash
-php bin/console app:threads [Aktion] [Parameter] [Kontext]
+These parameters need to be set within an `.env` file at the root of the project.
+
+Example `.env` file:
+
+```
+THREADS_ACCESS_TOKEN=your_token_here
+THREADS_USER_ID=your_user_id_here
+ANTHROPIC_API_KEY=your_api_key_here
+REDDIT_CLIENT_ID=your_client_id_here
+REDDIT_CLIENT_SECRET=your_client_secret_here
+REDDIT_USER_AGENT=your_user_agent_here
 ```
 
-### Verfügbare Aktionen
-| Aktion        | Beschreibung                                                                 |
-|---------------|-------------------------------------------------------------------------------|
-| `help`        | Zeigt die Hilfe mit allen verfügbaren Befehlen an.                           |
-| `list`        | Listet alle existierenden Threads mit Metadaten auf.                         |
-| `post`        | Erstellt einen neuen Thread. Beispiel: `app:threads post "Dein Text"`         |
-| `status`      | Prüft die Verbindung zur API und gibt Profildetails zurück.                  |
-| `get`         | Ruft Details eines Threads ab. Beispiel: `app:threads get THREAD_ID`         |
-| `delete`      | Löscht einen Thread. Beispiel: `app:threads delete THREAD_ID`                |
-| `auto-post`   | Startet den automatischen Post-Prozess. Beispiel: `app:threads auto-post 1-3` |
+## Usage
 
----
+Run the CLI using:
 
-### Beispiel: Automatischer Post-Prozess
-Starte den AI-gestützten automatischen Post-Prozess:
-```bash
-php bin/console app:threads auto-post 3-5
+```sh
+php bin/console app:threads <action> [value] [context] [extra]
 ```
 
-- **Range:** Gibt die Anzahl der Posts innerhalb von 24 Stunden an (z. B. 3-5 Posts).
-- **Kontext (optional):** Zusätzliche Informationen, die die AI verwenden soll.
+### Available Commands
 
----
+| Command       | Description                                             |
+|---------------|---------------------------------------------------------|
+| `list`        | List all existing threads                               |
+| `post "text"` | Post a new thread with given text                       |
+| `status`      | Check API connection status                             |
+| `get ID`      | Retrieve details of a specific thread                   |
+| `delete ID`   | Delete a thread by ID                                   |
+| `auto-post X` | Start automated posting (X = range like 1-3, 3-5, etc.) |
+| `auto-reply`  | Start auto-reply to incoming threads                    |
+| `config`      | Modify configuration settings                           |
+| `audit`       | Review automated interactions                           |
+| `help`        | Show help message                                       |
 
-## Fehlerbehandlung
+## Configuration
 
-### Typische Probleme und Lösungen
-1. **Fehler beim Abrufen von Threads:**
-   ```plaintext
-   Failed to retrieve threads: ...
-   ```
-   **Lösung:** Stelle sicher, dass `THREADS_ACCESS_TOKEN` und `THREADS_USER_ID` korrekt sind.
+To manage configuration settings, use:
 
-2. **Fehler beim Generieren von AI-Posts:**
-   ```plaintext
-   Fehler beim Generieren des Thread-Texts via Claude
-   ```
-   **Lösung:** Überprüfe den `ANTHROPIC_API_KEY`. Dieser muss gültig und aktiv sein.
-
-3. **Verbindungsprobleme:**
-   ```plaintext
-   Failed to connect to API
-   ```
-   **Lösung:** Stelle sicher, dass deine Internetverbindung funktioniert und die API-URL korrekt ist.
-
-### Logs einsehen
-Logs findest du im Verzeichnis `var/log`.
-
----
-
-## CLI Design: Kreative Darstellung
-
-**Threadstorm CLI** hebt sich durch ein modernes, kreatives Interface hervor. ASCII-Art und visuelle Designs verbessern die Lesbarkeit.
-
-### Beispiel-Output
-```plaintext
-─────────────────────────────────────────────────────────────
-🌩️  THREADSTORM CLI v1.0 - Automatisierung für Threads API 🌩️
-─────────────────────────────────────────────────────────────
-
-📅 Aktueller Modus: Automatisches Posten
-🔢 Intervall: 3-5 Posts pro 24 Stunden
-⏰ Startzeit: 08:00 Uhr
-⏳ Nächster Post in: 2 Stunden, 15 Minuten
-─────────────────────────────────────────────────────────────
-
-Letzter Post:
-🆔 ID: 123456789012345
-📝 Inhalt: "Ein neuer Thread für eine bessere Welt! 🌍✊"
-⏲️ Zeit: 2025-02-05 08:15:00
-
-─────────────────────────────────────────────────────────────
+```sh
+php bin/console app:threads config <parameter> <operation> [extra]
 ```
 
----
+### Example Configuration Commands
 
-## Support
+- View current subreddits:
+  ```sh
+  php bin/console app:threads config subreddits get
+  ```
+- Add a subreddit:
+  ```sh
+  php bin/console app:threads config subreddits add politics
+  ```
+- Remove a subreddit:
+  ```sh
+  php bin/console app:threads config subreddits remove politics
+  ```
 
-Für Fragen oder Feedback kannst du uns über GitHub Issues kontaktieren oder eine E-Mail senden an:
-`support@threadstorm-app.com`.
+## Auto-Post and Auto-Reply
 
----
+Threadstorm supports automation for both posting and replying to threads.
 
-> **Mit Liebe entwickelt 💙** - Threadstorm
+- **Auto-Post**:
+  ```sh
+  php bin/console app:threads auto-post 3-5
+  ```
+  This continuously posts 3-5 new threads in random intervals within a 24-hour timespan.
+
+- **Auto-Reply**:
+  ```sh
+  php bin/console app:threads auto-reply
+  ```
+  This automatically scrapes and replies to comments on your own threads in random intervals between 15 and 300 minutes.
+
+## Audit Functionality
+
+To review automated activities:
+
+```sh
+php bin/console app:threads audit
 ```
+
+You will be prompted to select either **Auto-Post** or **Auto-Reply** for audit review.
+
+## Error Handling
+
+If an error occurs, the CLI provides clear messages:
+
+```sh
+❌ A thread ID is required to retrieve a thread.
+```
+
+To troubleshoot, check your command syntax using `help`:
+
+```sh
+php bin/console app:threads help
+```
+
+
+## Disclaimer
+
+### Important Notice
+
+**Threadstorm CLI** is an unofficial tool designed to interact with the Threads API. **This tool has not been reviewed, endorsed, or authorized by Meta or any affiliated entities.**
+
+### Security Warning
+
+This project was developed with a primary focus on functionality rather than security. As a result, using this tool **may expose users to account bans, restrictions, or violations of the Threads Terms of Service (TOS).** Additionally, improper use of API credentials and automation features **could lead to unintended consequences, including account suspension.**
+
+### User Responsibility
+
+By using **Threadstorm CLI**, you acknowledge that:
+
+- You assume full responsibility for any actions taken while using the tool.
+- You understand that automating interactions on Threads **may** violate the platform's TOS.
+- You are aware of potential risks, including **API bans, account restrictions, or permanent suspension.**
+- You are solely responsible for securely handling your API credentials and personal data.
+
+### Recommendation
+
+- **Proceed with caution.** Use at your own risk and consider testing on a secondary account.
+- **Do not misuse automated features** in a way that could be considered spammy, abusive, or harmful.
+- **Stay informed** about the latest Threads API policies and platform regulations.
+
+### No Liability
+
+The developers and contributors of **Threadstorm CLI** hold **no liability** for any damages, losses, or consequences resulting from the use of this tool. Use it responsibly and in compliance with applicable laws and platform regulations.
+
+For more details, refer to the Threads Terms of Service and API usage guidelines before using this software.
+
+## License
+
+This project is licensed under the MIT License. See `LICENSE` for details.
+
+
+## Contributing
+
+1. Fork the repository
+2. Create a new branch (`feature-new-functionality`)
+3. Commit your changes
+4. Push to your branch and create a Pull Request
+

@@ -97,4 +97,4 @@ assets
 /auth.json
 /install.lock
 public/asset-manifest.json
-###< shopware/core ###
+###< shopware/core ###.env.dev

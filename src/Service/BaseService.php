@@ -8,7 +8,7 @@ use Symfony\Component\HttpClient\HttpClient;
 
 class BaseService
 {
-    private $client;
+    public $client;
     private string $accessToken;
     private string $apiBaseUrl;
     private string $threadsUserId;
@@ -206,7 +206,7 @@ class BaseService
      */
     public function deleteThread(string $threadId): bool
     {
-        $url = "{$this->apiBaseUrl}/{$this->threadsUserId}/threads/{$threadId}";
+        $url = "{$this->apiBaseUrl}/{$threadId}";
 
         try {
             $response = $this->client->request('DELETE', $url, [

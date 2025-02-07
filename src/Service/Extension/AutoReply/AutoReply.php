@@ -17,9 +17,9 @@ class AutoReply extends BaseService
     /**
      * AutoReply constructor.
      *
-     * @param ParameterBagInterface $params
+     * @param ParameterBagInterface  $params
      * @param ReplySchedulingService $replySchedulingService
-     * @param PostGenerationService $postGenerationService
+     * @param PostGenerationService  $postGenerationService
      */
     public function __construct(
         ParameterBagInterface  $params,
@@ -35,10 +35,10 @@ class AutoReply extends BaseService
     /**
      * Startet den persistierenden Auto-Reply-Prozess.
      *
-     * Dabei werden zuerst alle eigenen Threads ermittelt und ein Thread gesucht,
-     * der mindestens drei Replies enthält. Wird ein geeigneter Thread gefunden, so
-     * werden periodisch dessen Replies abgefragt, und auf einen zufällig ausgewählten
-     * Reply (aus den ersten 10) wird geantwortet.
+     * Dabei wird mithilfe des ThreadSelector ein eigener Thread ermittelt, der entweder
+     * eine einfache eligible Reply oder eine tiefergehende Gesprächskette (Conversation) liefert.
+     * Je nach Rückgabetyp wird der entsprechende Kontext aufgebaut und an den GenerationService
+     * zur Reply-Generierung übergeben.
      *
      * @param string|null $context Optionaler Kontext für die Reply-Generierung.
      */
@@ -47,23 +47,44 @@ class AutoReply extends BaseService
         $this->replySchedulingService->runLoop(function () use ($context) {
             try {
                 $threadSelector = new ThreadSelector($this);
-                $selectedThread = $threadSelector->selectEligibleThread(3);
-                if ($selectedThread === null) {
-                    echo "ℹ️ Kein eigener Thread mit mindestens 3 Replies gefunden." . PHP_EOL;
+                // 50/50 chance selection is now performed inside selectRandomEligibleTarget()
+                $selection = $threadSelector->selectRandomEligibleTarget(3);
+                if ($selection === null) {
+                    echo "ℹ️ Kein eigener Thread mit mindestens 3 eligible Replies oder Conversation gefunden." . PHP_EOL;
                     return;
                 }
-                $threadId = $selectedThread['id'];
-                echo "ℹ️ Ausgewählter Thread für AutoReply: {$threadId}" . PHP_EOL;
 
-                $repliesData = $this->getRepliesById($threadId);
-                if (!empty($repliesData['data'])) {
-                    $replies = $repliesData['data'];
-                    $selectedReply = $this->selectRandomReply($replies);
-                    if ($selectedReply === null) {
-                        echo "⚠️ Kein geeigneter Reply in den ersten 10 Antworten gefunden." . PHP_EOL;
+                if (isset($selection['top_reply'])) {
+                    $thread = $selection['thread'];
+                    $threadId = $thread['id'] ?? null;
+                    if ($threadId === null) {
+                        echo "⚠️ Thread ohne ID gefunden." . PHP_EOL;
                         return;
                     }
-                    $replyContext = $this->buildReplyContext($threadId, $selectedReply);
+                    echo "ℹ️ Ausgewählter Conversation-Thread für AutoReply: {$threadId}" . PHP_EOL;
+
+                    $replyContext = $this->buildConversationContext($selection);
+                    if ($context !== null) {
+                        $replyContext .= " " . $context;
+                    }
+                    $replyText = $this->postGenerationService->generateConversationReply($replyContext);
+                    if ($replyText === null) {
+                        echo "⚠️ Conversation-Reply-Text konnte nicht generiert werden." . PHP_EOL;
+                        return;
+                    }
+                    $replyId = $this->postReply($replyText, $selection['counter_reply']['id']);
+                    echo "🎉 Conversation-Reply erfolgreich gepostet, Reply-ID: {$replyId}." . PHP_EOL;
+                } else {
+                    $thread = $selection['thread'];
+                    $reply  = $selection['reply'];
+                    $threadId = $thread['id'] ?? null;
+                    if ($threadId === null) {
+                        echo "⚠️ Thread ohne ID gefunden." . PHP_EOL;
+                        return;
+                    }
+                    echo "ℹ️ Ausgewählter Thread für AutoReply: {$threadId}" . PHP_EOL;
+
+                    $replyContext = $this->buildReplyContext($threadId, $reply);
                     if ($context !== null) {
                         $replyContext .= " " . $context;
                     }
@@ -72,10 +93,8 @@ class AutoReply extends BaseService
                         echo "⚠️ Reply-Text konnte nicht generiert werden." . PHP_EOL;
                         return;
                     }
-                    $replyId = $this->postReply($replyText, $selectedReply['id']);
+                    $replyId = $this->postReply($replyText, $reply['id']);
                     echo "🎉 Reply erfolgreich gepostet, Reply-ID: {$replyId}." . PHP_EOL;
-                } else {
-                    echo "ℹ️ Es wurden noch keine Replies für Thread {$threadId} gefunden." . PHP_EOL;
                 }
             } catch (\Throwable $e) {
                 echo "🚫 Fehler im AutoReply-Prozess: " . $e->getMessage() . PHP_EOL;
@@ -84,10 +103,10 @@ class AutoReply extends BaseService
     }
 
     /**
-     * Baut einen Kontext-String für die Reply-Generierung auf.
+     * Baut einen Kontext-String für die einfache Reply-Generierung auf.
      *
      * @param string $rootThreadId ID des Ursprungs-Threads.
-     * @param array $replyData Daten des ausgewählten Replies.
+     * @param array  $replyData    Daten des ausgewählten Replies.
      * @return string
      */
     private function buildReplyContext(string $rootThreadId, array $replyData): string
@@ -99,22 +118,28 @@ class AutoReply extends BaseService
         }
         $rootText = $threadData['text'] ?? 'Unbekannter Ursprungsbeitrag';
         $replyText = $replyData['text'] ?? 'Kein Kommentartext vorhanden';
-        return "Ursprungsbeitrag: {$rootText} Kommentar: {$replyText}";
+        return "Ursprungsbeitrag: {$rootText} | Kommentar: {$replyText}";
     }
 
     /**
-     * Wählt zufällig einen Reply aus den ersten 10 Einträgen aus.
+     * Baut einen Kontext-String für die Conversation-Reply-Generierung auf.
      *
-     * @param array $replies Array mit Reply-Daten.
-     * @return array|null
+     * Erwartet ein Array, das folgende Schlüssel enthält:
+     *   - 'thread': Der Thread
+     *   - 'top_reply': Der ursprüngliche Kommentar
+     *   - 'my_reply': Deine Antwort
+     *   - 'counter_reply': Die Gegenantwort eines Dritten
+     *
+     * @param array $conversation Die komplette Gesprächskette.
+     * @return string
      */
-    private function selectRandomReply(array $replies): ?array
+    private function buildConversationContext(array $conversation): string
     {
-        $limit = min(count($replies), 10);
-        if ($limit === 0) {
-            return null;
-        }
-        $index = random_int(0, $limit - 1);
-        return $replies[$index];
+        $thread = $conversation['thread'];
+        $threadText = $thread['text'] ?? 'Unbekannter Ursprungsbeitrag';
+        $topReplyText = $conversation['top_reply']['text'] ?? 'Kein ursprünglicher Kommentartext';
+        $myReplyText = $conversation['my_reply']['text'] ?? 'Keine Antwort von Dir gefunden';
+        $counterReplyText = $conversation['counter_reply']['text'] ?? 'Kein Gegenkommentar gefunden';
+        return "Ursprungsbeitrag: {$threadText} | Kommentar: {$topReplyText} | Deine Antwort: {$myReplyText} | Gegenantwort: {$counterReplyText}";
     }
 }

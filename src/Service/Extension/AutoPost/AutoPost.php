@@ -62,7 +62,7 @@ class AutoPost extends BaseService
 
         while (true) {
             $this->schedulingService->runCycle($min, $max, function () use ($context) {
-                if (random_int(1, 100) <= 33 && $this->attemptMediaPost()) {
+                if (random_int(1, 100) <= 45 && $this->attemptMediaPost()) {
                     return;
                 }
 

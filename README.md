@@ -10,7 +10,7 @@
 - 📡 **Post threads**: Create a new thread
 - 🔌 **Check API status**: Verify the API connection
 - 🔎 **Retrieve threads**: Get details of specific threads
-- 🛑 **Delete threads**: Remove a thread
+- 🛑 **Delete threads**: Remove a thread (NOT functional, since not supported by Meta's API as of 02/25)
 - 🤖 **Auto-Posting**: Automate thread creation
 - 🤖 **Auto-Reply**: Automate responses to threads
 - ⚙️ **Configuration Management**: Adjust parameters for auto-posting

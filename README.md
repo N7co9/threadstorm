@@ -35,12 +35,12 @@ You will be greeted by german prompts, that were implemented for testing purpose
 
 Before running the application, ensure you have the following credentials:
 
-- `THREADS_ACCESS_TOKEN`
+- `THREADS_ACCESS_TOKEN` 
 - `THREADS_USER_ID`
-- `ANTHROPIC_API_KEY`
-- `REDDIT_CLIENT_ID`
-- `REDDIT_CLIENT_SECRET`
-- `REDDIT_USER_AGENT`
+- `ANTHROPIC_API_KEY` (optional, but highly recommended)
+- `REDDIT_CLIENT_ID` (optional)
+- `REDDIT_CLIENT_SECRET` (optional)
+- `REDDIT_USER_AGENT` (optional)
 
 These parameters need to be set within an `.env` file at the root of the project.
 

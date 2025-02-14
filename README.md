@@ -30,7 +30,7 @@ composer install
 
 ⚠️ Be warned: You will most likely not be able to clone and run this project to your satisfication;
 You will most definetly need to adjust the prompts to match your intentions. 
-Prompts are being provided by the PromptProvider, which is situated here '/src/Service/Extension/AutoPost/External/'.
+Prompts are being provided by the PromptProvider, which is situated here **'/src/Service/Extension/AutoPost/External/'**.
 You will be greeted by german prompts, that were implemented for testing purposes. Feel free to alter them to your will.
 
 Before running the application, ensure you have the following credentials:

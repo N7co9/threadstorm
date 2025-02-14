@@ -175,7 +175,7 @@ For more details, refer to the Threads Terms of Service and API usage guidelines
 
 ## License
 
-This project is licensed under the MIT License. See `LICENSE` for details.
+This project is licensed under the Creative Commons Attribution-NonCommercial 4.0 International License (CC BY-NC 4.0). See `LICENSE` for details.
 
 
 ## Contributing
